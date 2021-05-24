@@ -37,6 +37,9 @@ class Model(ABC):
     def __getattribute__(self, name: Any):
         return super().__getattribute__(name)
 
+    def __str__(self) -> str:
+        return f"X:\n{array(self.X.tolist())[:,1:].tolist()}]\n\nY:\n{list(self.Y)}\n\nb:{self.b}"
+
 
 class LinearRegression(Model):
     def __init__(self, X: List[List], Y: List) -> None:
@@ -48,15 +51,10 @@ class LinearRegression(Model):
         self.b = pinv(self.X).dot(matrix(self.Y).T).T.tolist()[0]
         self.yHat = (self.X * matrix(self.b).T).T.tolist()[0]
         self.yAv = sum(self.Y) / len(self.Y)
-        self.R2 = 1 - (sum(power(self.Y - self.yHat, 2))) / (
-            sum(power(self.Y - self.yAv, 2))
-        )
+        self.R2 = 1 - (sum(power(self.Y - self.yHat, 2))) / (sum(power(self.Y - self.yAv, 2)))
         self.S2 = sum(power(self.Y - self.yHat, 2)) / (len(self.Y) - len(self.X.T) - 1)
         self.F = (
-            (
-                matrix(self.b) * self.X.T * matrix(self.Y).T
-                - (sum(self.Y) ** 2) / len(self.Y)
-            )
+            (matrix(self.b) * self.X.T * matrix(self.Y).T - (sum(self.Y) ** 2) / len(self.Y))
             / (len(self.X.T) - 1)
             / self.S2
         ).tolist()[0][0]
@@ -67,7 +65,9 @@ class PowerRegression(Model):
     def __init__(self, X: List[List], Y: List) -> None:
         super().__init__(X, Y)
 
-    def fit(self, pow: float = 2.0, respConv: bool = False) -> List[float]:
+    def fit(
+        self, pow: List[float] = [2.0], respConv: bool = False, mutliPower: bool = False
+    ) -> List[float]:
         if respConv:
             self.Y, self.teta = responseConversion(self.X, self.Y)
         self.b = (
@@ -76,13 +76,10 @@ class PowerRegression(Model):
             .T.tolist()[0]
         )
         self.yHat = (
-            power(self.X, pow, out=zeros_like(self.X), where=(self.X != 0))
-            * matrix(self.b).T
+            power(self.X, pow, out=zeros_like(self.X), where=(self.X != 0)) * matrix(self.b).T
         ).T.tolist()[0]
         self.yAv = sum(self.Y) / len(self.Y)
-        self.R2 = 1 - (sum(power(self.Y - self.yHat, 2))) / (
-            sum(power(self.Y - self.yAv, 2))
-        )
+        self.R2 = 1 - (sum(power(self.Y - self.yHat, 2))) / (sum(power(self.Y - self.yAv, 2)))
         self.S2 = sum(power(self.Y - self.yHat, 2)) / (len(self.Y) - len(self.X.T) - 1)
         self.F = (
             (
@@ -127,15 +124,10 @@ class MultipleRegression(Model):
         self.model = f"Y = {round(self.b[0],2)}"
         self.yHat = (self.X * matrix(self.b).T).T.tolist()[0]
         self.yAv = sum(self.Y) / len(self.Y)
-        self.R2 = 1 - (sum(power(self.Y - self.yHat, 2))) / (
-            sum(power(self.Y - self.yAv, 2))
-        )
+        self.R2 = 1 - (sum(power(self.Y - self.yHat, 2))) / (sum(power(self.Y - self.yAv, 2)))
         self.S2 = sum(power(self.Y - self.yHat, 2)) / (len(self.Y) - len(self.X.T) - 1)
         self.F = (
-            (
-                matrix(self.b) * self.X.T * matrix(self.Y).T
-                - (sum(self.Y) ** 2) / len(self.Y)
-            )
+            (matrix(self.b) * self.X.T * matrix(self.Y).T - (sum(self.Y) ** 2) / len(self.Y))
             / (len(self.X.T) - 1)
             / self.S2
         ).tolist()[0][0]
@@ -145,9 +137,7 @@ class MultipleRegression(Model):
         mappa[-2] = "1/X{}\u00b2"
 
         for count, value in enumerate(powers):
-            self.model += (
-                f" + {round(self.b[count+1],2)} * {mappa[value].format(count+1)}"
-            )
+            self.model += f" + {round(self.b[count+1],2)} * {mappa[value].format(count+1)}"
         return self.b
 
 
