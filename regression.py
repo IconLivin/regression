@@ -50,11 +50,16 @@ class LinearRegression(Model):
             self.Y, self.teta = responseConversion(self.X, self.Y)
         self.b = pinv(self.X).dot(matrix(self.Y).T).T.tolist()[0]
         self.yHat = (self.X * matrix(self.b).T).T.tolist()[0]
-        self.yAv = sum(self.Y) / len(self.Y)
-        self.R2 = 1 - (sum(power(self.Y - self.yHat, 2))) / (sum(power(self.Y - self.yAv, 2)))
+        yAv = sum(self.Y) / len(self.Y)
+        self.R2 = 1 - (sum(power(self.Y - self.yHat, 2))) / (
+            sum(power(self.Y - yAv, 2))
+        )
         self.S2 = sum(power(self.Y - self.yHat, 2)) / (len(self.Y) - len(self.X.T) - 1)
         self.F = (
-            (matrix(self.b) * self.X.T * matrix(self.Y).T - (sum(self.Y) ** 2) / len(self.Y))
+            (
+                matrix(self.b) * self.X.T * matrix(self.Y).T
+                - (sum(self.Y) ** 2) / len(self.Y)
+            )
             / (len(self.X.T) - 1)
             / self.S2
         ).tolist()[0][0]
@@ -66,31 +71,50 @@ class PowerRegression(Model):
         super().__init__(X, Y)
 
     def fit(
-        self, pow: List[float] = [2.0], respConv: bool = False, mutliPower: bool = False
+        self,
+        power_: List[float] = [2.0],
+        respConv: bool = False,
     ) -> List[float]:
         if respConv:
             self.Y, self.teta = responseConversion(self.X, self.Y)
-        self.b = (
-            pinv(power(self.X, pow, out=zeros_like(self.X), where=(self.X != 0)))
-            .dot(matrix(self.Y).T)
-            .T.tolist()[0]
-        )
-        self.yHat = (
-            power(self.X, pow, out=zeros_like(self.X), where=(self.X != 0)) * matrix(self.b).T
-        ).T.tolist()[0]
-        self.yAv = sum(self.Y) / len(self.Y)
-        self.R2 = 1 - (sum(power(self.Y - self.yHat, 2))) / (sum(power(self.Y - self.yAv, 2)))
-        self.S2 = sum(power(self.Y - self.yHat, 2)) / (len(self.Y) - len(self.X.T) - 1)
-        self.F = (
-            (
-                matrix(self.b)
-                * power(self.X.T, pow, out=zeros_like(self.X.T), where=(self.X.T != 0))
-                * matrix(self.Y).T
-                - (sum(self.Y) ** 2) / len(self.Y)
+        self.R2 = 0
+        if type(power_) != list:
+            power_ = [power_]
+        for pow_ in power_:
+            b = (
+                pinv(power(self.X, pow_, out=zeros_like(self.X), where=(self.X != 0)))
+                .dot(matrix(self.Y).T)
+                .T.tolist()[0]
             )
-            / (len(self.X.T) - 1)
-            / self.S2
-        ).tolist()[0][0]
+            yHat = (
+                power(self.X, pow_, out=zeros_like(self.X), where=(self.X != 0))
+                * matrix(b).T
+            ).T.tolist()[0]
+            yAv = sum(self.Y) / len(self.Y)
+            R2 = 1 - (sum(power(self.Y - yHat, 2))) / (sum(power(self.Y - yAv, 2)))
+            if self.R2 < R2:
+                self.b = b
+                self.yHat = yHat
+                self.S2 = sum(power(self.Y - self.yHat, 2)) / (
+                    len(self.Y) - len(self.X.T) - 1
+                )
+                self.F = (
+                    (
+                        matrix(self.b)
+                        * power(
+                            self.X.T,
+                            pow_,
+                            out=zeros_like(self.X.T),
+                            where=(self.X.T != 0),
+                        )
+                        * matrix(self.Y).T
+                        - (sum(self.Y) ** 2) / len(self.Y)
+                    )
+                    / (len(self.X.T) - 1)
+                    / self.S2
+                ).tolist()[0][0]
+                self.R2 = R2
+                self.power = pow_
         return self.b
 
 
@@ -103,41 +127,36 @@ class MultipleRegression(Model):
         if respConv:
             self.Y, self.teta = responseConversion(self.X, self.Y)
         X_ = []
-        powers = []
+        self.powers = []
         for count, x in enumerate(self.X.T[1:]):
             c = cov(vstack((x, self.Y)))[0][1]
             if abs(c) < 1e-2:
                 print(f"{count} parameter has {c} covariance with Y")
             else:
-                l = LinearRegression([[elem] for elem in x.tolist()[0]], self.Y)
-                l.fit()
-                sq = PowerRegression([[elem] for elem in x.tolist()[0]], self.Y)
-                sq.fit(pow=2 * int(c / abs(c)))
-                if l.R2 > sq.R2:
-                    X_.append(x.tolist()[0])
-                    powers.append(1)
-                else:
-                    X_.append(power(array(x), int(2 * (c / abs(c)))).tolist()[0])
-                    powers.append(2 * int(c / abs(c)))
+                model = PowerRegression([[elem] for elem in x.tolist()[0]], self.Y)
+                model.fit(power_=linspace(-3, 3).tolist())
+                X_.append(power(array(x), model.power).tolist()[0])
+                self.powers.append(round(model.power, 1))
         self.X = insert(matrix(X_, dtype=float), 0, 1, axis=0).T
         self.b = pinv(self.X).dot(matrix(self.Y).T).T.tolist()[0]
         self.model = f"Y = {round(self.b[0],2)}"
         self.yHat = (self.X * matrix(self.b).T).T.tolist()[0]
-        self.yAv = sum(self.Y) / len(self.Y)
-        self.R2 = 1 - (sum(power(self.Y - self.yHat, 2))) / (sum(power(self.Y - self.yAv, 2)))
+        yAv = sum(self.Y) / len(self.Y)
+        self.R2 = 1 - (sum(power(self.Y - self.yHat, 2))) / (
+            sum(power(self.Y - yAv, 2))
+        )
         self.S2 = sum(power(self.Y - self.yHat, 2)) / (len(self.Y) - len(self.X.T) - 1)
         self.F = (
-            (matrix(self.b) * self.X.T * matrix(self.Y).T - (sum(self.Y) ** 2) / len(self.Y))
+            (
+                matrix(self.b) * self.X.T * matrix(self.Y).T
+                - (sum(self.Y) ** 2) / len(self.Y)
+            )
             / (len(self.X.T) - 1)
             / self.S2
         ).tolist()[0][0]
-        mappa = {}
-        mappa[1] = "X{}"
-        mappa[2] = "X{}\u00b2"
-        mappa[-2] = "1/X{}\u00b2"
 
-        for count, value in enumerate(powers):
-            self.model += f" + {round(self.b[count+1],2)} * {mappa[value].format(count+1)}"
+        for count, value in enumerate(self.powers):
+            self.model += f" + {round(self.b[count+1],4)} * X{count+1}^{value}"
         return self.b
 
 
